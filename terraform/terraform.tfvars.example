@@ -1,0 +1,6 @@
+# Copy to terraform.tfvars and adjust (terraform.tfvars is git-ignored)
+aws_region            = "ap-south-1"
+project_name          = "task-tracker"
+environment           = "prod"
+artifacts_bucket_name = "subhan-rahiman-task-tracker-artifacts"   # must be globally unique
+allowed_ssh_cidr      = "203.0.113.10/32"                         # your public IP
