@@ -1,0 +1,26 @@
+# Local development / demo:   docker compose -f docker/docker-compose.yml up --build
+services:
+  app:
+    build:
+      context: ../application
+      dockerfile: ../docker/Dockerfile
+      args:
+        APP_VERSION: local
+    image: devops-task-tracker:local
+    container_name: task-tracker
+    ports:
+      - "8080:8080"
+    environment:
+      APP_ENV: local
+      LOG_LEVEL: INFO
+      API_TOKEN: local-dev-token        # demo value only; in Kubernetes this comes from a Secret
+    volumes:
+      - task-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/ready')"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  task-data:
