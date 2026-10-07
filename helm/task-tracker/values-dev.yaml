@@ -1,0 +1,18 @@
+replicaCount: 1
+config:
+  appEnv: development
+  logLevel: DEBUG
+secret:
+  create: true
+  apiToken: dev-only-token      # demo value for local clusters – never use in production
+ingress:
+  host: tasks-dev.local          # must differ from the raw-manifest Ingress (host+path must be unique)
+autoscaling:
+  enabled: false
+podDisruptionBudget:
+  enabled: false
+persistence:
+  size: 50Mi
+resources:
+  requests: { cpu: 25m, memory: 48Mi }
+  limits: { cpu: 150m, memory: 128Mi }

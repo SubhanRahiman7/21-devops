@@ -1,0 +1,15 @@
+replicaCount: 3
+config:
+  appEnv: production
+  logLevel: WARNING
+secret:
+  existingSecret: task-tracker-secret     # created with kubernetes/create-secret.sh, not stored in Git
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 8
+persistence:
+  size: 1Gi
+resources:
+  requests: { cpu: 100m, memory: 96Mi }
+  limits: { cpu: 500m, memory: 256Mi }

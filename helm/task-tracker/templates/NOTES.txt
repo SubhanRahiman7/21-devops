@@ -1,0 +1,9 @@
+DevOps Task Tracker {{ .Chart.AppVersion }} deployed as release "{{ .Release.Name }}" in namespace "{{ .Release.Namespace }}".
+
+Try it:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "task-tracker.fullname" . }} 8080:{{ .Values.service.port }}
+  curl http://localhost:8080/api/info
+{{- if .Values.ingress.enabled }}
+Ingress host: {{ .Values.ingress.host }}
+{{- end }}
+Run the chart tests:  helm test {{ .Release.Name }} -n {{ .Release.Namespace }}

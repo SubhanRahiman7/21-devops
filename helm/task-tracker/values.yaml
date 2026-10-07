@@ -1,0 +1,53 @@
+# Default values – override with -f values-dev.yaml / values-prod.yaml or --set key=value
+replicaCount: 2
+
+image:
+  repository: ghcr.io/subhanrahiman7/devops-task-tracker
+  tag: ""                       # empty -> Chart.appVersion
+  pullPolicy: IfNotPresent
+imagePullSecrets: []            # e.g. [{name: ghcr-creds}] for a private registry
+
+config:                         # -> ConfigMap (non-sensitive)
+  appEnv: production
+  logLevel: INFO
+
+secret:                         # -> API_TOKEN (sensitive)
+  existingSecret: ""            # name of a Secret you created yourself (recommended)
+  create: false                 # true: the chart creates the Secret from apiToken (demo / dev only)
+  apiToken: ""
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  host: tasks.local
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+
+persistence:                    # SQLite database volume
+  enabled: true
+  size: 100Mi
+  storageClass: ""
+  existingClaim: ""
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 60
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+resources:
+  requests: { cpu: 50m, memory: 64Mi }
+  limits: { cpu: 250m, memory: 192Mi }
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8080"
+  prometheus.io/path: /metrics

@@ -1,0 +1,9 @@
+apiVersion: v2
+name: task-tracker
+description: Helm chart for the DevOps Task Tracker (Deployment, Service, ConfigMap, Secret, Ingress, HPA, PVC, PDB)
+type: application
+version: 0.1.0          # chart version
+appVersion: "1.0.0"     # application version (default image tag)
+keywords: [devops, flask, task-tracker]
+maintainers:
+  - name: Subhan Rahiman

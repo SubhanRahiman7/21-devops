@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "task-tracker.fullname" . }}-test
+  labels: {{- include "task-tracker.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+spec:
+  restartPolicy: Never
+  containers:
+    - name: curl
+      image: curlimages/curl:8.10.1
+      command: ["sh", "-c", "curl -fsS http://{{ include "task-tracker.fullname" . }}:{{ .Values.service.port }}/ready && curl -fsS http://{{ include "task-tracker.fullname" . }}:{{ .Values.service.port }}/api/info"]
