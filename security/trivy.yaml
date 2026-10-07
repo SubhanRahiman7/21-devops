@@ -1,0 +1,11 @@
+# Trivy (container image scanning)
+severity:
+  - HIGH
+  - CRITICAL
+exit-code: 1                 # SECURITY GATE: a finding fails the job
+vulnerability:
+  ignore-unfixed: true       # only fail on vulnerabilities that already have a fix available
+scan:
+  scanners:
+    - vuln
+    - secret

@@ -1,0 +1,3 @@
+# Bandit (SAST) – used with:  bandit -r application/app -c security/bandit.yaml -ll
+# -ll = fail on MEDIUM severity and above
+exclude_dirs: ["tests", ".venv"]

@@ -1,0 +1,13 @@
+# Gitleaks (secret scanning)
+title = "devops-task-tracker gitleaks config"
+
+[extend]
+useDefault = true            # keep all built-in rules (cloud keys, tokens, private keys, ...)
+
+[allowlist]
+description = "paths that never contain real secrets"
+paths = [
+  '''(^|/)tests/''',
+  '''\.md$''',
+  '''docs/screenshots/''',
+]
