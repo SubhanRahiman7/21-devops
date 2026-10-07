@@ -1,0 +1,260 @@
+name: CI/CD + DevSecOps
+
+# Application -> Git -> GitHub -> CI -> Build & Test -> Security scanning -> Docker image
+#   -> Container registry (GHCR) -> Kubernetes (Helm) -> smoke test
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: devops-task-tracker
+
+permissions:
+  contents: read
+
+jobs:
+  # ------------------------------------------------------------------ CI: build and test
+  test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: application/requirements-dev.txt
+      - name: Install dependencies
+        working-directory: application
+        run: pip install -r requirements-dev.txt ruff
+      - name: Lint (ruff)
+        working-directory: application
+        run: ruff check .
+      - name: Unit tests with coverage
+        working-directory: application
+        run: pytest --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=85
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: application/coverage.xml
+
+  chart-lint:
+    name: Validate Helm chart and manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: helm lint (default, dev and prod values)
+        run: |
+          helm lint helm/task-tracker
+          helm lint helm/task-tracker -f helm/task-tracker/values-dev.yaml
+          helm lint helm/task-tracker -f helm/task-tracker/values-prod.yaml
+      - name: Render the chart and the raw manifests
+        run: |
+          helm template tt helm/task-tracker -f helm/task-tracker/values-dev.yaml > /tmp/rendered-dev.yaml
+          kubectl kustomize kubernetes > /tmp/rendered-raw.yaml
+          grep -c '^kind:' /tmp/rendered-dev.yaml /tmp/rendered-raw.yaml
+
+  # ------------------------------------------------------------------ DevSecOps: scans before the image is built
+  sast-bandit:
+    name: SAST - Bandit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install bandit
+      - name: Bandit (fails on MEDIUM and above)
+        run: bandit -r application/app -c security/bandit.yaml -ll
+
+  sast-codeql:
+    name: SAST - CodeQL
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: python
+      - uses: github/codeql-action/analyze@v3
+
+  sca:
+    name: SCA - pip-audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pip-audit
+      - name: Audit dependencies (fails on known vulnerabilities)
+        run: pip-audit -r application/requirements.txt
+
+  secret-scan:
+    name: Secret scan - Gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Gitleaks
+        run: |
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest detect \
+            --source /repo --no-git --config /repo/security/gitleaks.toml --redact --verbose
+
+  # ------------------------------------------------------------------ Docker image + image scan
+  docker-build:
+    name: Docker build
+    needs: [test, chart-lint, sast-bandit, sca, secret-scan]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the image
+        run: docker build -f docker/Dockerfile --build-arg APP_VERSION="${GITHUB_SHA::7}" -t "$IMAGE_NAME:${{ github.sha }}" application
+      - name: Container smoke test
+        run: |
+          docker run -d --name smoke -p 8080:8080 -e API_TOKEN=ci-token "$IMAGE_NAME:${{ github.sha }}"
+          curl -fsS --retry 20 --retry-all-errors --retry-delay 1 http://localhost:8080/ready
+          echo
+          curl -fsS http://localhost:8080/api/info
+          echo
+          docker exec smoke id
+      - name: Save the image (the same bytes are scanned and pushed)
+        run: docker save "$IMAGE_NAME:${{ github.sha }}" -o /tmp/image.tar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: docker-image
+          path: /tmp/image.tar
+          retention-days: 1
+
+  image-scan:
+    name: Image scan - Trivy
+    needs: docker-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: docker-image
+          path: /tmp
+      - run: docker load -i /tmp/image.tar
+      - name: Trivy (fails on fixable HIGH/CRITICAL vulnerabilities)
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD/security:/cfg:ro" \
+            -e TRIVY_DISABLE_VEX_NOTICE=true \
+            aquasec/trivy:latest image --config /cfg/trivy.yaml "$IMAGE_NAME:${{ github.sha }}"
+
+  # ------------------------------------------------------------------ Security gate
+  security-gate:
+    name: Security gate
+    if: always()
+    needs: [test, chart-lint, sast-bandit, sast-codeql, sca, secret-scan, docker-build, image-scan]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Evaluate all results
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+
+          needs = json.loads(os.environ["RESULTS"])
+          bad = [job for job, v in needs.items() if v["result"] != "success"]
+          rows = ["### Security gate", "| Stage | Result |", "|---|---|"]
+          rows += ["| " + job + " | " + v["result"] + " |" for job, v in needs.items()]
+          verdict = "BLOCKED - " + ", ".join(bad) if bad else "PASSED - the image may be published"
+          rows += ["", "**GATE: " + verdict + "**"]
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as fh:
+              fh.write("\n".join(rows) + "\n")
+          print("\n".join(rows))
+          sys.exit(1 if bad else 0)
+          PY
+
+  # ------------------------------------------------------------------ CD: registry and Kubernetes
+  publish:
+    name: Push image to GHCR
+    needs: security-gate
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: docker-image
+          path: /tmp
+      - name: Compute the image name
+        id: meta
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Tag and push the scanned image
+        run: |
+          docker load -i /tmp/image.tar
+          IMAGE="${{ steps.meta.outputs.image }}"
+          docker tag "$IMAGE_NAME:${{ github.sha }}" "$IMAGE:${{ github.sha }}"
+          docker tag "$IMAGE_NAME:${{ github.sha }}" "$IMAGE:latest"
+          docker push "$IMAGE:${{ github.sha }}"
+          docker push "$IMAGE:latest"
+
+  deploy:
+    name: Deploy with Helm to Kubernetes (kind)
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create a Kubernetes cluster (kind)
+        uses: helm/kind-action@v1
+      - name: Image pull secret for the private registry
+        run: |
+          kubectl create namespace task-tracker
+          kubectl -n task-tracker create secret docker-registry ghcr-creds \
+            --docker-server=ghcr.io --docker-username="${{ github.actor }}" --docker-password="${{ secrets.GITHUB_TOKEN }}"
+      - name: Application Secret (random token generated for this run, never stored in Git)
+        run: |
+          kubectl -n task-tracker create secret generic task-tracker-secret --from-literal=API_TOKEN="$(openssl rand -hex 16)"
+      - name: helm upgrade --install
+        run: |
+          helm upgrade --install tracker helm/task-tracker -n task-tracker \
+            --set image.repository="${{ needs.publish.outputs.image }}" \
+            --set image.tag="${{ github.sha }}" \
+            --set "imagePullSecrets[0].name=ghcr-creds" \
+            --set secret.existingSecret=task-tracker-secret \
+            --set replicaCount=2 --set autoscaling.enabled=false --set ingress.enabled=false \
+            --wait --timeout 4m
+      - name: Cluster state
+        run: |
+          helm list -n task-tracker
+          kubectl -n task-tracker get deploy,pods,svc,pvc
+          kubectl -n task-tracker get pods -o jsonpath='{range .items[*]}{.metadata.name}{"  "}{.spec.containers[0].image}{"\n"}{end}'
+      - name: helm test
+        run: helm test tracker -n task-tracker
+      - name: Smoke test through the Service
+        run: |
+          kubectl -n task-tracker port-forward svc/tracker-task-tracker 8080:80 &
+          sleep 4
+          TOKEN="$(kubectl -n task-tracker get secret task-tracker-secret -o jsonpath='{.data.API_TOKEN}' | base64 -d)"
+          curl -fsS http://localhost:8080/ready; echo
+          curl -fsS -X POST http://localhost:8080/api/tasks -H "X-API-Token: $TOKEN" -H "Content-Type: application/json" -d '{"title":"created by the pipeline"}'; echo
+          curl -fsS http://localhost:8080/api/tasks; echo
+          curl -fsS http://localhost:8080/metrics | grep -E '^(tasks_total|app_info)'
+      - name: Summary
+        run: |
+          {
+            echo "### Deployed"
+            echo "Image: \`${{ needs.publish.outputs.image }}:${{ github.sha }}\` deployed with Helm chart \`helm/task-tracker\` to a kind cluster and smoke tested."
+          } >> "$GITHUB_STEP_SUMMARY"
