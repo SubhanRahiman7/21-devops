@@ -8,7 +8,9 @@ AUTH = {"X-API-Token": TOKEN}
 
 @pytest.fixture()
 def client(tmp_path):
-    app = create_app({"DATA_DIR": str(tmp_path), "API_TOKEN": TOKEN, "APP_VERSION": "1.2.3", "APP_ENV": "test", "TESTING": True})
+    app = create_app(
+        {"DATA_DIR": str(tmp_path), "API_TOKEN": TOKEN, "APP_VERSION": "1.2.3", "APP_ENV": "test", "TESTING": True}
+    )
     return app.test_client()
 
 

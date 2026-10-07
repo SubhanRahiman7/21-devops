@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DevOps Task Tracker</title>
+<style>
+ :root{--bg:#0f172a;--card:#1e293b;--fg:#e2e8f0;--mut:#94a3b8;--acc:#38bdf8;--ok:#4ade80}
+ *{box-sizing:border-box}body{margin:0;font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--fg)}
+ main{max-width:860px;margin:0 auto;padding:32px 20px}h1{margin:0 0 4px;font-size:28px}
+ .sub{color:var(--mut);margin-bottom:24px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:24px}
+ .card{background:var(--card);border-radius:12px;padding:14px 16px}.k{color:var(--mut);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+ .v{font-size:18px;margin-top:4px;word-break:break-all}.ok{color:var(--ok)}
+ ul{list-style:none;padding:0;margin:0}li{background:var(--card);border-radius:10px;padding:12px 16px;margin-bottom:8px;display:flex;justify-content:space-between}
+ .done{text-decoration:line-through;color:var(--mut)}.pill{color:var(--acc);font-size:12px}
+</style></head><body><main>
+<h1>DevOps Task Tracker</h1><div class="sub">Application → Git → CI/CD → Docker → Kubernetes → Helm → Monitoring → GitOps</div>
+<div class="grid">
+ <div class="card"><div class="k">Environment</div><div class="v">{{ env }}</div></div>
+ <div class="card"><div class="k">Version</div><div class="v">{{ version }}</div></div>
+ <div class="card"><div class="k">Served by (pod)</div><div class="v">{{ host }}</div></div>
+ <div class="card"><div class="k">Health</div><div class="v ok" id="health">checking…</div></div>
+</div>
+<h2>Tasks <span class="pill" id="count"></span></h2><ul id="tasks"></ul>
+<script>
+fetch('/health').then(r=>r.json()).then(d=>{document.getElementById('health').textContent=d.status.toUpperCase()});
+fetch('/api/tasks').then(r=>r.json()).then(d=>{document.getElementById('count').textContent=d.length+' total';
+ document.getElementById('tasks').innerHTML=d.map(t=>'<li><span class="'+(t.done?'done':'')+'">'+t.title+'</span><span class="pill">'+(t.done?'done':'open')+'</span></li>').join('')||'<li>No tasks yet</li>'});
+</script></main></body></html>
