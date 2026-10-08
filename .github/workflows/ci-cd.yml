@@ -77,8 +77,12 @@ jobs:
       - uses: actions/checkout@v4
       - name: Trivy config scan (fails on HIGH/CRITICAL misconfigurations)
         run: |
+          # monitoring/ holds third-party stacks (Prometheus, Grafana, Loki, Promtail) that need a
+          # writable filesystem and, for Prometheus, node-proxy access to read cAdvisor metrics.
+          # Those findings are a documented, accepted exception (see README, DevSecOps section);
+          # everything the project owns is scanned and must be clean.
           docker run --rm -v "$PWD:/repo:ro" aquasec/trivy:latest config \
-            --severity HIGH,CRITICAL --exit-code 1 /repo
+            --severity HIGH,CRITICAL --exit-code 1 --skip-dirs /repo/monitoring /repo
 
   # ------------------------------------------------------------------ DevSecOps: scans before the image is built
   sast-bandit:
