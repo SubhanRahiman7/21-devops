@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: monitoring
+resources:
+  - namespace.yaml
+  - k8s/prometheus.yaml
+  - k8s/loki.yaml
+  - k8s/promtail.yaml
+  - k8s/grafana.yaml
+configMapGenerator:
+  - name: prometheus-config
+    files: [prometheus.yml, alert-rules.yml]
+  - name: loki-config
+    files: [loki.yml]
+  - name: promtail-config
+    files: [promtail.yml]
+  - name: grafana-datasources
+    files: [grafana-datasources.yml]
+  - name: grafana-dashboard-provider
+    files: [grafana-dashboard-provider.yml]
+  - name: grafana-dashboards
+    files: [dashboards/task-tracker.json]
+generatorOptions:
+  disableNameSuffixHash: true

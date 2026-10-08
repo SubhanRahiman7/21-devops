@@ -1,0 +1,24 @@
+server:
+  http_listen_port: 9080
+positions:
+  filename: /tmp/positions.yaml
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+scrape_configs:
+  - job_name: kubernetes-pods
+    # Tail the container log files on the node and derive the labels from the file path:
+    #   /var/log/pods/<namespace>_<pod>_<uid>/<container>/<n>.log
+    static_configs:
+      - targets: [localhost]
+        labels:
+          job: kubernetes-pods
+          __path__: /var/log/pods/*/*/*.log
+    pipeline_stages:
+      - regex:
+          source: filename
+          expression: '/var/log/pods/(?P<namespace>[^_]+)_(?P<pod>[^_]+)_[^/]+/(?P<container>[^/]+)/[^/]+\.log'
+      - labels:
+          namespace:
+          pod:
+          container:
+      - cri: {}

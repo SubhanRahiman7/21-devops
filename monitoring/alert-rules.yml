@@ -1,0 +1,44 @@
+groups:
+  - name: task-tracker
+    rules:
+      - alert: TaskTrackerDown
+        expr: sum(up{job="task-tracker"}) == 0 or absent(up{job="task-tracker"})
+        for: 30s
+        labels: { severity: critical }
+        annotations:
+          summary: "No Task Tracker pod is being scraped (application down)"
+
+      - alert: TaskTrackerPodNotReady
+        expr: count(up{job="task-tracker"} == 0) > 0
+        for: 30s
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $value }} Task Tracker pod(s) cannot be scraped"
+
+      - alert: HighErrorRate
+        expr: sum(rate(http_requests_total{job="task-tracker",status=~"5.."}[1m])) / sum(rate(http_requests_total{job="task-tracker"}[1m])) > 0.05
+        for: 1m
+        labels: { severity: warning }
+        annotations:
+          summary: "More than 5% of requests fail with 5xx"
+
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job="task-tracker"}[2m])) by (le)) > 0.5
+        for: 2m
+        labels: { severity: warning }
+        annotations:
+          summary: "95th percentile latency above 500 ms"
+
+      - alert: HighCPUUsage
+        expr: max(rate(container_cpu_usage_seconds_total{namespace="task-tracker",container="app"}[1m])) > 0.2   # 80% of the 250m CPU limit
+        for: 1m
+        labels: { severity: warning }
+        annotations:
+          summary: "A Task Tracker pod uses more than 80% of its 250m CPU limit"
+
+      - alert: HighMemoryUsage
+        expr: max(container_memory_working_set_bytes{namespace="task-tracker",container="app"}) / (192 * 1024 * 1024) > 0.85
+        for: 1m
+        labels: { severity: warning }
+        annotations:
+          summary: "A Task Tracker pod uses more than 85% of its 192Mi memory limit"
