@@ -36,7 +36,7 @@ jobs:
       - name: Unit tests with coverage
         working-directory: application
         run: pytest --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=85
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: coverage-report
           path: application/coverage.xml
@@ -151,7 +151,7 @@ jobs:
           docker exec smoke id
       - name: Save the image (the same bytes are scanned and pushed)
         run: docker save "$IMAGE_NAME:${{ github.sha }}" -o /tmp/image.tar
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: docker-image
           path: /tmp/image.tar
