@@ -1,14 +1,14 @@
 # Desired state of the "dev" environment – Git is the single source of truth.
 # Argo CD renders helm/task-tracker with these values; change a value, commit, push -> the cluster follows.
-replicaCount: 2
+replicaCount: 3
 
 image:
   repository: ghcr.io/subhanrahiman7/devops-task-tracker
-  tag: "1.0.0"                       # CI/CD (or a pull request) updates this line to release a new version
+  tag: "1.1.0"                       # CI/CD (or a pull request) updates this line to release a new version
   pullPolicy: IfNotPresent
 
 config:
-  appEnv: gitops-dev
+  appEnv: gitops-dev-v2
   logLevel: INFO
 
 secret:
