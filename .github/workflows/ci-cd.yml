@@ -21,7 +21,7 @@ jobs:
     name: Build and test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -45,7 +45,7 @@ jobs:
     name: Validate Helm chart and manifests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: helm lint (default, dev and prod values)
         run: |
           helm lint helm/task-tracker
@@ -61,7 +61,7 @@ jobs:
     name: Validate Terraform
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: hashicorp/setup-terraform@v3
       - name: fmt, init (no backend) and validate
         working-directory: terraform
@@ -74,7 +74,7 @@ jobs:
     name: IaC scan - Trivy (Terraform, Kubernetes, Helm, Dockerfile)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Trivy config scan (fails on HIGH/CRITICAL misconfigurations)
         run: |
           # monitoring/ holds third-party stacks (Prometheus, Grafana, Loki, Promtail) that need a
@@ -89,7 +89,7 @@ jobs:
     name: SAST - Bandit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -104,7 +104,7 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: github/codeql-action/init@v3
         with:
           languages: python
@@ -114,7 +114,7 @@ jobs:
     name: SCA - pip-audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -126,7 +126,7 @@ jobs:
     name: Secret scan - Gitleaks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Gitleaks
         run: |
           docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest detect \
@@ -138,7 +138,7 @@ jobs:
     needs: [test, chart-lint, terraform-validate, sast-bandit, sca, secret-scan, iac-scan]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build the image
         run: docker build -f docker/Dockerfile --build-arg APP_VERSION="${GITHUB_SHA::7}" -t "$IMAGE_NAME:${{ github.sha }}" application
       - name: Container smoke test
@@ -162,7 +162,7 @@ jobs:
     needs: docker-build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/download-artifact@v4
         with:
           name: docker-image
@@ -243,7 +243,7 @@ jobs:
       contents: read
       packages: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Create a Kubernetes cluster (kind)
         uses: helm/kind-action@v1
       - name: Image pull secret for the private registry
