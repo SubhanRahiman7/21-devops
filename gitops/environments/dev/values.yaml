@@ -1,0 +1,26 @@
+# Desired state of the "dev" environment – Git is the single source of truth.
+# Argo CD renders helm/task-tracker with these values; change a value, commit, push -> the cluster follows.
+replicaCount: 2
+
+image:
+  repository: ghcr.io/subhanrahiman7/devops-task-tracker
+  tag: "1.0.0"                       # CI/CD (or a pull request) updates this line to release a new version
+  pullPolicy: IfNotPresent
+
+config:
+  appEnv: gitops-dev
+  logLevel: INFO
+
+secret:
+  existingSecret: task-tracker-secret   # created out-of-band (kubernetes/create-secret.sh) – never stored in Git
+
+ingress:
+  enabled: true
+  host: tasks-gitops.local
+
+autoscaling:
+  enabled: false                     # replicas are controlled from Git in this environment
+podDisruptionBudget:
+  enabled: false
+persistence:
+  size: 50Mi
