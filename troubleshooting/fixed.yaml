@@ -1,0 +1,112 @@
+# Known-good stack for the Final Troubleshooting Challenge (namespace: challenge).
+# broken.yaml is this file with seven faults injected on purpose - see README.md.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: challenge
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: tt-secret
+  namespace: challenge
+type: Opaque
+stringData:
+  API_TOKEN: challenge-demo-token        # throw-away demo value, not a real credential
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tt-data
+  namespace: challenge
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: standard
+  resources:
+    requests:
+      storage: 100Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tt
+  namespace: challenge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tt
+  template:
+    metadata:
+      labels:
+        app: tt
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+      containers:
+        - name: app
+          image: ghcr.io/subhanrahiman7/devops-task-tracker:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: tt-secret
+                  key: API_TOKEN
+          readinessProbe:
+            httpGet: { path: /ready, port: http }
+            periodSeconds: 3
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 250m, memory: 192Mi }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: tt-data
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tt
+  namespace: challenge
+spec:
+  selector:
+    app: tt
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tt
+  namespace: challenge
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: tasks-challenge.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: tt
+                port:
+                  number: 80
